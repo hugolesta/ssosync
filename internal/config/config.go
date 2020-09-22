@@ -22,6 +22,10 @@ type Config struct {
 	IgnoreUsers []string `mapstructure:"ignore_users"`
 	// Ignore groups ...
 	IgnoreGroups []string `mapstructure:"ignore_groups"`
+
+	SuspendedUsers bool
+
+	DeletedUsers []string `mapstructure:"export_suspended_users"`
 }
 
 const (
