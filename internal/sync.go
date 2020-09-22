@@ -17,6 +17,7 @@ package internal
 import (
 	"context"
 	"io/ioutil"
+	"os"
 
 	"github.com/awslabs/ssosync/internal/aws"
 	"github.com/awslabs/ssosync/internal/config"
@@ -54,6 +55,9 @@ func New(cfg *config.Config, a aws.Client, g google.Client) SyncGSuite {
 
 // SyncUsers will Sync Google Users to AWS SSO SCIM
 func (s *syncGSuite) SyncUsers() error {
+
+	var deletedUsersArray []string
+
 	log.Debug("get deleted users")
 	deletedUsers, err := s.google.GetDeletedUsers()
 	if err != nil {
@@ -65,6 +69,8 @@ func (s *syncGSuite) SyncUsers() error {
 		log.WithFields(log.Fields{
 			"email": u.PrimaryEmail,
 		}).Info("deleting google user")
+
+		deletedUsersArray = append(deletedUsersArray, u.PrimaryEmail)
 
 		uu, err := s.aws.FindUserByEmail(u.PrimaryEmail)
 		if err != aws.ErrUserNotFound && err != nil {
@@ -137,7 +143,10 @@ func (s *syncGSuite) SyncUsers() error {
 
 		s.users[uu.Username] = uu
 	}
-
+	// Log email in file if this variable is true.
+	if s.cfg.SuspendedUsers {
+		s.suspendedUsers(deletedUsersArray)
+	}
 	return nil
 }
 
@@ -295,4 +304,26 @@ func (s *syncGSuite) ignoreGroup(name string) bool {
 	}
 
 	return false
+}
+
+func (s *syncGSuite) suspendedUsers(deletedUsersArray []string) bool {
+	log.Debug("I've enter here....")
+
+	for _, u := range deletedUsersArray {
+		log.Info(u)
+
+		f, err := os.OpenFile("ignoredUsers", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return false
+		}
+		defer f.Close()
+
+		_, err = f.WriteString(u + ",")
+
+		if err != nil {
+			return false
+		}
+	}
+
+	return true
 }
